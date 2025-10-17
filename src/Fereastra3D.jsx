@@ -17,6 +17,13 @@ const Fereastra3D = ({
   deschideri = {},
   culoareExterior = '#333333', 
   culoareInterior = '#666666',
+  latimeCadruSus = 0.05,
+  latimeCadruJos = 0.05,
+  latimeCadruStanga = 0.05,
+  latimeCadruDreapta = 0.05,
+  latimeCadruSeparatori = 0.05,
+  latimeCadruExterior = 0.05,
+  latimeCadruInterior = 0.03,
   zoomLevel = 3.0,
   rotationX = 0,
   rotationY = 0,
@@ -87,10 +94,9 @@ const Fereastra3D = ({
 
     // Cache pentru dimensiuni - se recreează doar când se schimbă
     const dimensions = useMemo(() => {
-        const gCadru = PROPS_STATICE.grosimeCadru;
         const aCadru = PROPS_STATICE.adancimeCadru;
         const exteriorThickness = aCadru * 0.7;
-        const interiorThickness = aCadru * 0.3;
+        const interiorThickness = latimeCadruInterior;
         
         // Verifică dacă avem dimensiuni custom sau folosește dimensiuni egale
         const hasCustomDimensions = Object.keys(diviziuniCustom).length > 0;
@@ -100,40 +106,31 @@ const Fereastra3D = ({
             // Folosește dimensiunile custom
             latimeGeam = 1.0; // Valoare placeholder, se va înlocui în geometrii
         } else {
-            // Folosește dimensiuni egale
-            latimeGeam = (profilLatime - gCadru * (numarDiviziuni + 1)) / numarDiviziuni;
+            // Folosește dimensiuni egale - calcul corect bazat pe zona disponibilă
+            const zonaDisponibilaLatime = profilLatime - latimeCadruStanga - latimeCadruDreapta;
+            const latimeSeparatori = latimeCadruSeparatori * (numarDiviziuni - 1); // separatori între geamuri
+            const latimeGeamTotal = zonaDisponibilaLatime - latimeSeparatori;
+            latimeGeam = latimeGeamTotal / numarDiviziuni;
         }
         
         return {
-            gCadru,
             aCadru,
             exteriorThickness,
             interiorThickness,
             latimeGeam,
             hasCustomDimensions
         };
-    }, [profilLatime, numarDiviziuni, diviziuniCustom]);
+    }, [profilLatime, numarDiviziuni, diviziuniCustom, latimeCadruStanga, latimeCadruDreapta, latimeCadruSeparatori, latimeCadruInterior]);
 
     // Cache pentru geometrii - se recreează doar când dimensiunile se schimbă
     const geometries = useMemo(() => {
-        const { gCadru, exteriorThickness, interiorThickness, latimeGeam } = dimensions;
+        const { exteriorThickness, interiorThickness, latimeGeam } = dimensions;
         
         return {
-            // Cadrul principal
-            topFrameExterior: new THREE.BoxGeometry(profilLatime, gCadru, exteriorThickness),
-            bottomFrameExterior: new THREE.BoxGeometry(profilLatime, gCadru, exteriorThickness),
-            leftFrameExterior: new THREE.BoxGeometry(gCadru, profilInaltime - (gCadru * 2), exteriorThickness),
-            rightFrameExterior: new THREE.BoxGeometry(gCadru, profilInaltime - (gCadru * 2), exteriorThickness),
-            
-            topFrameInterior: new THREE.BoxGeometry(profilLatime, gCadru, interiorThickness),
-            bottomFrameInterior: new THREE.BoxGeometry(profilLatime, gCadru, interiorThickness),
-            leftFrameInterior: new THREE.BoxGeometry(gCadru, profilInaltime - (gCadru * 2), interiorThickness),
-            rightFrameInterior: new THREE.BoxGeometry(gCadru, profilInaltime - (gCadru * 2), interiorThickness),
-            
             // Geamuri (doar pentru dimensiuni egale, pentru custom se creează dinamic)
-            glass: new THREE.BoxGeometry(latimeGeam, profilInaltime - (gCadru * 2), 0.01)
+            glass: new THREE.BoxGeometry(latimeGeam, profilInaltime - latimeCadruSus - latimeCadruJos, 0.01)
         };
-    }, [profilLatime, profilInaltime, dimensions]);
+    }, [profilLatime, profilInaltime, dimensions, latimeCadruSus, latimeCadruJos]);
 
     useEffect(() => {
         if (!mountRef.current) return;
@@ -176,51 +173,68 @@ const Fereastra3D = ({
         // Array pentru a stoca toate obiectele
         const allObjects = [];
         
-        // Generează cadrul exterior al profilului folosind cache-ul
-        const topFrameExterior = new THREE.Mesh(geometries.topFrameExterior, materials.exterior);
-        topFrameExterior.position.y = (profilInaltime / 2) - (gCadru / 2);
-        topFrameExterior.position.z = exteriorThickness / 2;
-        allObjects.push(topFrameExterior);
+        // Generează cadrul exterior al profilului cu lățimi specifice
+        // Cadrul de sus
+        const topFrameExterior = new THREE.BoxGeometry(profilLatime, latimeCadruSus, exteriorThickness);
+        const topFrameExteriorMesh = new THREE.Mesh(topFrameExterior, materials.exterior);
+        topFrameExteriorMesh.position.y = (profilInaltime / 2) - (latimeCadruSus / 2);
+        topFrameExteriorMesh.position.z = exteriorThickness / 2;
+        allObjects.push(topFrameExteriorMesh);
         
-        const bottomFrameExterior = new THREE.Mesh(geometries.bottomFrameExterior, materials.exterior);
-        bottomFrameExterior.position.y = -(profilInaltime / 2) + (gCadru / 2);
-        bottomFrameExterior.position.z = exteriorThickness / 2;
-        allObjects.push(bottomFrameExterior);
+        // Cadrul de jos
+        const bottomFrameExterior = new THREE.BoxGeometry(profilLatime, latimeCadruJos, exteriorThickness);
+        const bottomFrameExteriorMesh = new THREE.Mesh(bottomFrameExterior, materials.exterior);
+        bottomFrameExteriorMesh.position.y = -(profilInaltime / 2) + (latimeCadruJos / 2);
+        bottomFrameExteriorMesh.position.z = exteriorThickness / 2;
+        allObjects.push(bottomFrameExteriorMesh);
         
-        const leftFrameExterior = new THREE.Mesh(geometries.leftFrameExterior, materials.exterior);
-        leftFrameExterior.position.x = -(profilLatime / 2) + (gCadru / 2);
-        leftFrameExterior.position.z = exteriorThickness / 2;
-        allObjects.push(leftFrameExterior);
+        // Cadrul de stânga
+        const leftFrameExterior = new THREE.BoxGeometry(latimeCadruStanga, profilInaltime - latimeCadruSus - latimeCadruJos, exteriorThickness);
+        const leftFrameExteriorMesh = new THREE.Mesh(leftFrameExterior, materials.exterior);
+        leftFrameExteriorMesh.position.x = -(profilLatime / 2) + (latimeCadruStanga / 2);
+        leftFrameExteriorMesh.position.z = exteriorThickness / 2;
+        allObjects.push(leftFrameExteriorMesh);
         
-        const rightFrameExterior = new THREE.Mesh(geometries.rightFrameExterior, materials.exterior);
-        rightFrameExterior.position.x = (profilLatime / 2) - (gCadru / 2);
-        rightFrameExterior.position.z = exteriorThickness / 2;
-        allObjects.push(rightFrameExterior);
+        // Cadrul de dreapta
+        const rightFrameExterior = new THREE.BoxGeometry(latimeCadruDreapta, profilInaltime - latimeCadruSus - latimeCadruJos, exteriorThickness);
+        const rightFrameExteriorMesh = new THREE.Mesh(rightFrameExterior, materials.exterior);
+        rightFrameExteriorMesh.position.x = (profilLatime / 2) - (latimeCadruDreapta / 2);
+        rightFrameExteriorMesh.position.z = exteriorThickness / 2;
+        allObjects.push(rightFrameExteriorMesh);
         
-        // Generează cadrul interior al profilului folosind cache-ul
-        const topFrameInterior = new THREE.Mesh(geometries.topFrameInterior, materials.interior);
-        topFrameInterior.position.y = (profilInaltime / 2) - (gCadru / 2);
-        topFrameInterior.position.z = -interiorThickness / 2;
-        allObjects.push(topFrameInterior);
+        // Generează cadrul interior al profilului cu lățimi specifice
+        // Cadrul de sus interior
+        const topFrameInterior = new THREE.BoxGeometry(profilLatime, latimeCadruSus, interiorThickness);
+        const topFrameInteriorMesh = new THREE.Mesh(topFrameInterior, materials.interior);
+        topFrameInteriorMesh.position.y = (profilInaltime / 2) - (latimeCadruSus / 2);
+        topFrameInteriorMesh.position.z = -interiorThickness / 2;
+        allObjects.push(topFrameInteriorMesh);
         
-        const bottomFrameInterior = new THREE.Mesh(geometries.bottomFrameInterior, materials.interior);
-        bottomFrameInterior.position.y = -(profilInaltime / 2) + (gCadru / 2);
-        bottomFrameInterior.position.z = -interiorThickness / 2;
-        allObjects.push(bottomFrameInterior);
+        // Cadrul de jos interior
+        const bottomFrameInterior = new THREE.BoxGeometry(profilLatime, latimeCadruJos, interiorThickness);
+        const bottomFrameInteriorMesh = new THREE.Mesh(bottomFrameInterior, materials.interior);
+        bottomFrameInteriorMesh.position.y = -(profilInaltime / 2) + (latimeCadruJos / 2);
+        bottomFrameInteriorMesh.position.z = -interiorThickness / 2;
+        allObjects.push(bottomFrameInteriorMesh);
         
-        const leftFrameInterior = new THREE.Mesh(geometries.leftFrameInterior, materials.interior);
-        leftFrameInterior.position.x = -(profilLatime / 2) + (gCadru / 2);
-        leftFrameInterior.position.z = -interiorThickness / 2;
-        allObjects.push(leftFrameInterior);
+        // Cadrul de stânga interior
+        const leftFrameInterior = new THREE.BoxGeometry(latimeCadruStanga, profilInaltime - latimeCadruSus - latimeCadruJos, interiorThickness);
+        const leftFrameInteriorMesh = new THREE.Mesh(leftFrameInterior, materials.interior);
+        leftFrameInteriorMesh.position.x = -(profilLatime / 2) + (latimeCadruStanga / 2);
+        leftFrameInteriorMesh.position.z = -interiorThickness / 2;
+        allObjects.push(leftFrameInteriorMesh);
         
-        const rightFrameInterior = new THREE.Mesh(geometries.rightFrameInterior, materials.interior);
-        rightFrameInterior.position.x = (profilLatime / 2) - (gCadru / 2);
-        rightFrameInterior.position.z = -interiorThickness / 2;
-        allObjects.push(rightFrameInterior);
+        // Cadrul de dreapta interior
+        const rightFrameInterior = new THREE.BoxGeometry(latimeCadruDreapta, profilInaltime - latimeCadruSus - latimeCadruJos, interiorThickness);
+        const rightFrameInteriorMesh = new THREE.Mesh(rightFrameInterior, materials.interior);
+        rightFrameInteriorMesh.position.x = (profilLatime / 2) - (latimeCadruDreapta / 2);
+        rightFrameInteriorMesh.position.z = -interiorThickness / 2;
+        allObjects.push(rightFrameInteriorMesh);
         
         // Generează diviziunile verticale (separatorii) în funcție de dimensiunile custom
         if (numarDiviziuni > 1) {
-            let currentX = -(profilLatime / 2) + (gCadru / 2);
+            const zonaDisponibilaInaltime = profilInaltime - latimeCadruSus - latimeCadruJos;
+            let currentX = -(profilLatime / 2) + latimeCadruStanga;
             
             for (let i = 0; i < numarDiviziuni - 1; i++) {
                 // Determină lățimea geamului curent
@@ -228,12 +242,12 @@ const Fereastra3D = ({
                     ? diviziuniCustom[i] 
                     : dimensions.latimeGeam;
                 
-                // Calculează poziția separatorului
-                currentX += latimeGeamActuala + (gCadru / 2);
+                // Calculează poziția separatorului (după geamul curent)
+                currentX += latimeGeamActuala;
                 
                 // Creează geometriile pentru separator
-                const separatorExteriorGeo = new THREE.BoxGeometry(gCadru, profilInaltime - (gCadru * 2), exteriorThickness);
-                const separatorInteriorGeo = new THREE.BoxGeometry(gCadru, profilInaltime - (gCadru * 2), interiorThickness);
+                const separatorExteriorGeo = new THREE.BoxGeometry(latimeCadruSeparatori, zonaDisponibilaInaltime, exteriorThickness);
+                const separatorInteriorGeo = new THREE.BoxGeometry(latimeCadruSeparatori, zonaDisponibilaInaltime, interiorThickness);
                 
                 // Separator exterior
                 const separatorExterior = new THREE.Mesh(separatorExteriorGeo, materials.exterior);
@@ -247,13 +261,17 @@ const Fereastra3D = ({
                 separatorInterior.position.z = -interiorThickness / 2;
                 allObjects.push(separatorInterior);
                 
-                // Actualizează poziția pentru următorul separator
-                currentX += gCadru / 2;
+                // Actualizează poziția pentru următorul separator (trece peste separatorul curent)
+                currentX += latimeCadruSeparatori;
             }
         }
         
         // Generează geamurile folosind dimensiunile custom sau egale
-        let currentX = -(profilLatime / 2) + (gCadru / 2);
+        // Calculează zona disponibilă pentru geamuri (fără cadrele exterioare)
+        const zonaDisponibilaLatime = profilLatime - latimeCadruStanga - latimeCadruDreapta;
+        const zonaDisponibilaInaltime = profilInaltime - latimeCadruSus - latimeCadruJos;
+        
+        let currentX = -(profilLatime / 2) + latimeCadruStanga;
         
         for (let i = 0; i < numarDiviziuni; i++) {
             // Determină lățimea geamului
@@ -267,7 +285,7 @@ const Fereastra3D = ({
                 // Creează geometria pentru acest geam specific
                 const glassGeo = new THREE.BoxGeometry(
                     latimeGeamActuala,
-                    profilInaltime - (gCadru * 2),
+                    zonaDisponibilaInaltime,
                     0.01
                 );
                 glassMesh = new THREE.Mesh(glassGeo, materials.glass);
@@ -280,8 +298,7 @@ const Fereastra3D = ({
             glassMesh.position.x = currentX + (latimeGeamActuala / 2);
             allObjects.push(glassMesh);
             
-            // Adaugă triunghiuri pentru deschideri pe acest geam
-            const inaltimeGeam = profilInaltime - (gCadru * 2);
+            // Adaugă săgeți pentru deschideri pe acest geam
             const glassPosition = new THREE.Vector3(
                 currentX + (latimeGeamActuala / 2),
                 0,
@@ -295,7 +312,7 @@ const Fereastra3D = ({
                     const arrowRabatant = createArrowForOpening(
                         glassPosition, 
                         latimeGeamActuala, 
-                        inaltimeGeam, 
+                        zonaDisponibilaInaltime, 
                         'rabatant'
                     );
                     allObjects.push(arrowRabatant);
@@ -306,7 +323,7 @@ const Fereastra3D = ({
                     const arrowLaterala = createArrowForOpening(
                         glassPosition, 
                         latimeGeamActuala, 
-                        inaltimeGeam, 
+                        zonaDisponibilaInaltime, 
                         deschideri[i].laterala
                     );
                     allObjects.push(arrowLaterala);
@@ -314,7 +331,7 @@ const Fereastra3D = ({
             }
             
             // Actualizează poziția pentru următorul geam (inclusiv separatorul)
-            currentX += latimeGeamActuala + gCadru;
+            currentX += latimeGeamActuala + latimeCadruSeparatori;
         }
         
         // Adaugă toate obiectele în scenă
@@ -322,7 +339,7 @@ const Fereastra3D = ({
         
         // --- 4. POZIȚIA CAMEREI ȘI RANDARE ---
         camera.position.z = zoomLevel;
-        camera.position.y = 0.5;
+        camera.position.y = 0; // Pozitie frontală perfectă
         
         // --- 5. CONTROLUL PRIN BUTOANE (NU MAI FOLOSIM MOUSE) ---
         // Cursor normal pentru canvas
@@ -376,7 +393,7 @@ const Fereastra3D = ({
             // Eliberează renderer-ul
             renderer.dispose();
         };
-    }, [materials, dimensions, geometries, zoomLevel, rotationX, rotationY, numarDiviziuni, onRotationChange, profilInaltime, profilLatime, diviziuniCustom, deschideri, createArrowForOpening]); // Se re-randează doar când cache-ul se invalidează sau controalele de vizualizare se schimbă
+    }, [materials, dimensions, geometries, zoomLevel, rotationX, rotationY, numarDiviziuni, onRotationChange, profilInaltime, profilLatime, diviziuniCustom, deschideri, createArrowForOpening, latimeCadruSus, latimeCadruJos, latimeCadruStanga, latimeCadruDreapta, latimeCadruSeparatori, latimeCadruInterior]); // Se re-randează doar când cache-ul se invalidează sau controalele de vizualizare se schimbă
 
     return (
         <div 

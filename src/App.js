@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Layout, Typography, Slider, Row, Col, Card, ColorPicker, Divider, Button, Modal, InputNumber, Checkbox, Select } from 'antd';
-import { ZoomInOutlined, ZoomOutOutlined, ReloadOutlined, UpOutlined, DownOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
+import { ZoomInOutlined, ZoomOutOutlined, ReloadOutlined, UpOutlined, DownOutlined, LeftOutlined, RightOutlined, RotateRightOutlined, CalculatorOutlined } from '@ant-design/icons';
 import Fereastra3D from './Fereastra3D';
 import './App.css'; 
 
@@ -16,14 +16,28 @@ function App() {
   
   // Stările pentru modal și dimensiunile individuale
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isAreasModalVisible, setIsAreasModalVisible] = useState(false);
   const [diviziuniCustom, setDiviziuniCustom] = useState({}); // {0: 1.2, 1: 0.8, ...}
   
   // State pentru deschideri: {0: {rabatant: true, laterala: 'stanga'}, ...}
   const [deschideri, setDeschideri] = useState({});
   
+  // State pentru lățimile cadrelor profilului principal
+  const [latimeCadruSus, setLatimeCadruSus] = useState(0.05);
+  const [latimeCadruJos, setLatimeCadruJos] = useState(0.05);
+  const [latimeCadruStanga, setLatimeCadruStanga] = useState(0.05);
+  const [latimeCadruDreapta, setLatimeCadruDreapta] = useState(0.05);
+  
+  // State pentru lățimea cadrelor separatorilor
+  const [latimeCadruSeparatori, setLatimeCadruSeparatori] = useState(0.05);
+  
+  // State pentru lățimile cadrelor (legacy - pentru compatibilitate)
+  const [latimeCadruExterior, setLatimeCadruExterior] = useState(0.05);
+  const [latimeCadruInterior, setLatimeCadruInterior] = useState(0.03);
+  
   // Stările pentru culorile cadrului
-  const [exteriorColor, setExteriorColor] = useState('#333333');
-  const [interiorColor, setInteriorColor] = useState('#666666');
+  const [exteriorColor, setExteriorColor] = useState('#000000'); // Negru pentru exterior
+  const [interiorColor, setInteriorColor] = useState('#ffffff'); // Alb pentru interior
   
   // Stările pentru zoom și vizualizare
   const [zoomLevel, setZoomLevel] = useState(3.0);
@@ -76,10 +90,15 @@ function App() {
     setZoomLevel(value);
   }, []);
 
-  const handleRotationChange = useCallback((x, y) => {
-    setRotationX(x);
-    setRotationY(y);
-  }, []);
+    const handleRotationChange = useCallback((x, y) => {
+        setRotationX(x);
+        setRotationY(y);
+    }, []);
+
+    const handleFlipView = useCallback(() => {
+        setRotationY(prev => prev + 180); // Întoarce complet pentru a vedea partea opusă
+        setRotationX(0); // Resetează rotația X pentru vedere frontală
+    }, []);
 
   // Handler-e pentru modal
   const showModal = useCallback(() => {
@@ -147,6 +166,93 @@ function App() {
       }
     }));
   }, []);
+
+  const handleLatimeCadruExteriorChange = useCallback((value) => {
+    setLatimeCadruExterior(value);
+  }, []);
+
+  const handleLatimeCadruInteriorChange = useCallback((value) => {
+    setLatimeCadruInterior(value);
+  }, []);
+
+  // Handler-e pentru lățimile cadrelor profilului principal
+  const handleLatimeCadruSusChange = useCallback((value) => {
+    setLatimeCadruSus(value);
+  }, []);
+
+  const handleLatimeCadruJosChange = useCallback((value) => {
+    setLatimeCadruJos(value);
+  }, []);
+
+  const handleLatimeCadruStangaChange = useCallback((value) => {
+    setLatimeCadruStanga(value);
+  }, []);
+
+  const handleLatimeCadruDreaptaChange = useCallback((value) => {
+    setLatimeCadruDreapta(value);
+  }, []);
+
+  // Handler pentru lățimea cadrelor separatorilor
+  const handleLatimeCadruSeparatoriChange = useCallback((value) => {
+    setLatimeCadruSeparatori(value);
+  }, []);
+
+  // Handler-e pentru modalul de arii
+  const showAreasModal = useCallback(() => {
+    setIsAreasModalVisible(true);
+  }, []);
+
+  const handleAreasModalOk = useCallback(() => {
+    setIsAreasModalVisible(false);
+  }, []);
+
+  const handleAreasModalCancel = useCallback(() => {
+    setIsAreasModalVisible(false);
+  }, []);
+
+  // Funcție pentru calculul ariilor
+  const calculateAreas = useCallback(() => {
+    // Aria profilului total
+    const ariaProfil = profilLatime * profilInaltime;
+    
+    // Aria interioară (fără cadrul exterior)
+    const latimeInterioara = profilLatime - latimeCadruStanga - latimeCadruDreapta;
+    const inaltimeInterioara = profilInaltime - latimeCadruSus - latimeCadruJos;
+    const ariaInterioara = latimeInterioara * inaltimeInterioara;
+    
+    // Aria geamurilor individuale
+    const ariiGeamuri = [];
+    let currentX = 0;
+    
+    for (let i = 0; i < numarDiviziuni; i++) {
+      // Determină lățimea geamului
+      let latimeGeam;
+      if (Object.keys(diviziuniCustom).length > 0 && diviziuniCustom[i]) {
+        latimeGeam = diviziuniCustom[i];
+      } else {
+        // Calcul pentru dimensiuni egale
+        const latimeSeparatori = latimeCadruSeparatori * (numarDiviziuni - 1);
+        const latimeGeamTotal = latimeInterioara - latimeSeparatori;
+        latimeGeam = latimeGeamTotal / numarDiviziuni;
+      }
+      
+      const ariaGeam = latimeGeam * inaltimeInterioara;
+      ariiGeamuri.push({
+        index: i + 1,
+        latime: latimeGeam,
+        inaltime: inaltimeInterioara,
+        aria: ariaGeam
+      });
+    }
+    
+    return {
+      ariaProfil,
+      ariaInterioara,
+      ariiGeamuri,
+      latimeInterioara,
+      inaltimeInterioara
+    };
+  }, [profilLatime, profilInaltime, latimeCadruSus, latimeCadruJos, latimeCadruStanga, latimeCadruDreapta, latimeCadruSeparatori, numarDiviziuni, diviziuniCustom]);
 
   // Funcție pentru a opri rotirea continuă
   const stopRotation = useCallback(() => {
@@ -250,6 +356,65 @@ function App() {
                 value={profilInaltime} 
                 onChange={handleProfilInaltimeChange} 
               />
+            </Col>
+            
+            <Col span={24}>
+              <Divider style={{ margin: '12px 0' }} />
+              <Text strong style={{ color: '#333', marginBottom: '12px', display: 'block' }}>Lățimi Cadre Profil:</Text>
+              <Row gutter={[8, 8]}>
+                <Col span={12}>
+                  <Text style={{ fontSize: '12px' }}>Sus (m):</Text>
+                  <InputNumber
+                    value={latimeCadruSus}
+                    onChange={handleLatimeCadruSusChange}
+                    min={0.01}
+                    max={0.2}
+                    step={0.01}
+                    size="small"
+                    style={{ width: '100%' }}
+                    precision={2}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Text style={{ fontSize: '12px' }}>Jos (m):</Text>
+                  <InputNumber
+                    value={latimeCadruJos}
+                    onChange={handleLatimeCadruJosChange}
+                    min={0.01}
+                    max={0.2}
+                    step={0.01}
+                    size="small"
+                    style={{ width: '100%' }}
+                    precision={2}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Text style={{ fontSize: '12px' }}>Stânga (m):</Text>
+                  <InputNumber
+                    value={latimeCadruStanga}
+                    onChange={handleLatimeCadruStangaChange}
+                    min={0.01}
+                    max={0.2}
+                    step={0.01}
+                    size="small"
+                    style={{ width: '100%' }}
+                    precision={2}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Text style={{ fontSize: '12px' }}>Dreapta (m):</Text>
+                  <InputNumber
+                    value={latimeCadruDreapta}
+                    onChange={handleLatimeCadruDreaptaChange}
+                    min={0.01}
+                    max={0.2}
+                    step={0.01}
+                    size="small"
+                    style={{ width: '100%' }}
+                    precision={2}
+                  />
+                </Col>
+              </Row>
             </Col>
           </Row>
         </Card>
@@ -398,10 +563,18 @@ function App() {
 
       </Sider>
       <Layout>
-        <Header style={{ padding: 0, background: '#fff' }}>
+        <Header style={{ padding: 0, background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Title level={3} style={{ margin: 0, padding: '0 24px', lineHeight: '64px' }}>
             Vizualizare 3D
           </Title>
+          <Button 
+            type="primary" 
+            icon={<CalculatorOutlined />}
+            onClick={showAreasModal}
+            style={{ marginRight: '24px' }}
+          >
+            Calculează Ariile
+          </Button>
         </Header>
         <Content style={{ margin: '24px 16px 0' }}>
           <div style={{ padding: 24, minHeight: 360, background: '#fff' }}>
@@ -414,6 +587,13 @@ function App() {
               deschideri={deschideri}
               culoareExterior={exteriorColor}
               culoareInterior={interiorColor}
+              latimeCadruSus={latimeCadruSus}
+              latimeCadruJos={latimeCadruJos}
+              latimeCadruStanga={latimeCadruStanga}
+              latimeCadruDreapta={latimeCadruDreapta}
+              latimeCadruSeparatori={latimeCadruSeparatori}
+              latimeCadruExterior={latimeCadruExterior}
+              latimeCadruInterior={latimeCadruInterior}
               zoomLevel={zoomLevel}
               rotationX={rotationX}
               rotationY={rotationY}
@@ -421,14 +601,15 @@ function App() {
             />
             
             {/* Butoane de control rotire sub ecranul 3D */}
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'center', 
-              alignItems: 'center',
-              marginTop: '20px',
-              flexDirection: 'column',
-              gap: '8px'
-            }}>
+           <div style={{ 
+             display: 'flex', 
+             justifyContent: 'center', 
+             alignItems: 'center',
+             marginTop: '20px',
+             flexDirection: 'column',
+             gap: '8px'
+           }}>
+             
               {/* Buton Sus */}
               <Button 
                 icon={<UpOutlined />} 
@@ -448,43 +629,62 @@ function App() {
                 }}
               />
               
-              {/* Butoane Stânga și Dreapta */}
-              <div style={{ display: 'flex', gap: '60px', alignItems: 'center' }}>
-                <Button 
-                  icon={<LeftOutlined />} 
-                  onMouseDown={handleRotateLeft}
-                  onMouseUp={stopRotation}
-                  onMouseLeave={stopRotation}
-                  size="large"
-                  shape="circle"
-                  title="Rotire la stânga (ține apăsat)"
-                  style={{ 
-                    width: '50px', 
-                    height: '50px',
-                    fontSize: '18px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                />
-                <Button 
-                  icon={<RightOutlined />} 
-                  onMouseDown={handleRotateRight}
-                  onMouseUp={stopRotation}
-                  onMouseLeave={stopRotation}
-                  size="large"
-                  shape="circle"
-                  title="Rotire la dreapta (ține apăsat)"
-                  style={{ 
-                    width: '50px', 
-                    height: '50px',
-                    fontSize: '18px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                />
-              </div>
+             {/* Butoane Stânga, Flip și Dreapta */}
+             <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+               <Button 
+                 icon={<LeftOutlined />} 
+                 onMouseDown={handleRotateLeft}
+                 onMouseUp={stopRotation}
+                 onMouseLeave={stopRotation}
+                 size="large"
+                 shape="circle"
+                 title="Rotire la stânga (ține apăsat)"
+                 style={{ 
+                   width: '50px', 
+                   height: '50px',
+                   fontSize: '18px',
+                   display: 'flex',
+                   alignItems: 'center',
+                   justifyContent: 'center'
+                 }}
+               />
+               
+               {/* Buton Flip Interior/Exterior */}
+               <Button 
+                 icon={<RotateRightOutlined />} 
+                 onClick={handleFlipView}
+                 size="large"
+                 type="primary"
+                 shape="circle"
+                 title="Flip Interior/Exterior (180°)"
+                 style={{ 
+                   width: '50px', 
+                   height: '50px',
+                   fontSize: '16px',
+                   display: 'flex',
+                   alignItems: 'center',
+                   justifyContent: 'center'
+                 }}
+               />
+               
+               <Button 
+                 icon={<RightOutlined />} 
+                 onMouseDown={handleRotateRight}
+                 onMouseUp={stopRotation}
+                 onMouseLeave={stopRotation}
+                 size="large"
+                 shape="circle"
+                 title="Rotire la dreapta (ține apăsat)"
+                 style={{ 
+                   width: '50px', 
+                   height: '50px',
+                   fontSize: '18px',
+                   display: 'flex',
+                   alignItems: 'center',
+                   justifyContent: 'center'
+                 }}
+               />
+             </div>
               
               {/* Buton Jos */}
               <Button 
@@ -515,13 +715,14 @@ function App() {
         open={isModalVisible}
         onOk={handleModalOk}
         onCancel={handleModalCancel}
-        width={500}
+        width={700}
         okText="Aplică"
         cancelText="Anulează"
       >
         <div style={{ marginBottom: '16px' }}>
           <Text type="secondary">
-            Ajustează lățimea fiecărei diviziuni (geam + separator). Totalul trebuie să fie aproximativ {profilLatime.toFixed(2)}m.
+            Ajustează lățimea fiecărei diviziuni (geam + separator) și lățimile cadrelor. 
+            Totalul diviziunilor trebuie să fie aproximativ {profilLatime.toFixed(2)}m.
           </Text>
           {Object.keys(diviziuniCustom).length > 0 && (
             <div style={{ marginTop: '8px', padding: '8px', background: '#e6f7ff', borderRadius: '4px', border: '1px solid #91d5ff' }}>
@@ -531,6 +732,7 @@ function App() {
             </div>
           )}
         </div>
+
         
         <Row gutter={[16, 16]}>
           {Array.from({ length: numarDiviziuni }, (_, index) => (
@@ -622,6 +824,31 @@ function App() {
             return null;
           })()}
         </div>
+
+        {/* Controale pentru cadrul separatorilor - doar dacă sunt mai multe diviziuni */}
+        {numarDiviziuni > 1 && (
+          <Card title="Lățimi Cadre Separatare" size="small" style={{ marginTop: '16px' }}>
+            <Text type="secondary" style={{ fontSize: '12px', marginBottom: '12px', display: 'block' }}>
+              Pentru {numarDiviziuni} diviziuni ai nevoie de {numarDiviziuni - 1} cadru separator
+            </Text>
+            <Row gutter={16}>
+              {Array.from({ length: numarDiviziuni - 1 }, (_, index) => (
+                <Col span={8} key={`cadru-${index}`}>
+                  <Text strong>Cadru {index + 1} (m):</Text>
+                  <InputNumber
+                    value={latimeCadruSeparatori}
+                    onChange={handleLatimeCadruSeparatoriChange}
+                    min={0.01}
+                    max={0.1}
+                    step={0.01}
+                    style={{ width: '100%', marginTop: '8px' }}
+                    precision={2}
+                  />
+                </Col>
+              ))}
+            </Row>
+          </Card>
+        )}
         
         <div style={{ marginTop: '16px', textAlign: 'center' }}>
           <Button 
@@ -635,6 +862,101 @@ function App() {
             Această funcție va scala proporțional toate diviziunile
           </div>
         </div>
+      </Modal>
+
+      {/* Modal pentru calculul ariilor */}
+      <Modal
+        title="Calculul Ariilor"
+        open={isAreasModalVisible}
+        onOk={handleAreasModalOk}
+        onCancel={handleAreasModalCancel}
+        width={600}
+        okText="Închide"
+        cancelText="Anulează"
+      >
+        {(() => {
+          const areas = calculateAreas();
+          return (
+            <div>
+              <Row gutter={[16, 16]}>
+                <Col span={24}>
+                  <Card size="small" style={{ marginBottom: '16px', background: '#f8f9fa' }}>
+                    <Title level={5} style={{ margin: 0, color: '#1890ff' }}>📐 Aria Profilului Total</Title>
+                    <div style={{ marginTop: '8px' }}>
+                      <Text strong style={{ fontSize: '16px' }}>
+                        {areas.ariaProfil.toFixed(2)} m²
+                      </Text>
+                      <br />
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        {profilLatime.toFixed(2)}m × {profilInaltime.toFixed(2)}m
+                      </Text>
+                    </div>
+                  </Card>
+                </Col>
+                
+                <Col span={24}>
+                  <Card size="small" style={{ marginBottom: '16px', background: '#f6ffed' }}>
+                    <Title level={5} style={{ margin: 0, color: '#52c41a' }}>🏠 Aria Interioară</Title>
+                    <div style={{ marginTop: '8px' }}>
+                      <Text strong style={{ fontSize: '16px' }}>
+                        {areas.ariaInterioara.toFixed(2)} m²
+                      </Text>
+                      <br />
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        {areas.latimeInterioara.toFixed(2)}m × {areas.inaltimeInterioara.toFixed(2)}m
+                      </Text>
+                      <br />
+                      <Text type="secondary" style={{ fontSize: '11px' }}>
+                        (fără cadrul exterior)
+                      </Text>
+                    </div>
+                  </Card>
+                </Col>
+              </Row>
+
+              <Divider style={{ margin: '16px 0' }}>
+                <Text strong style={{ color: '#1890ff' }}>🔍 Ariile Geamurilor</Text>
+              </Divider>
+
+              <Row gutter={[16, 12]}>
+                {areas.ariiGeamuri.map((geam, index) => (
+                  <Col span={12} key={index}>
+                    <Card size="small" style={{ background: '#e6f7ff', border: '1px solid #91d5ff' }}>
+                      <Title level={5} style={{ margin: 0, color: '#1890ff' }}>
+                        Geamul {geam.index}
+                      </Title>
+                      <div style={{ marginTop: '8px' }}>
+                        <Text strong style={{ fontSize: '14px' }}>
+                          {geam.aria.toFixed(2)} m²
+                        </Text>
+                        <br />
+                        <Text type="secondary" style={{ fontSize: '11px' }}>
+                          {geam.latime.toFixed(2)}m × {geam.inaltime.toFixed(2)}m
+                        </Text>
+                      </div>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+
+              <div style={{ marginTop: '16px', padding: '12px', background: '#f0f0f0', borderRadius: '4px' }}>
+                <Text strong>📊 Sumar:</Text>
+                <br />
+                <Text style={{ fontSize: '12px' }}>
+                  • Total geamuri: {areas.ariiGeamuri.reduce((sum, geam) => sum + geam.aria, 0).toFixed(2)} m²
+                </Text>
+                <br />
+                <Text style={{ fontSize: '12px' }}>
+                  • Aria cadrelor: {(areas.ariaInterioara - areas.ariiGeamuri.reduce((sum, geam) => sum + geam.aria, 0)).toFixed(2)} m²
+                </Text>
+                <br />
+                <Text style={{ fontSize: '12px' }}>
+                  • Procent geam: {((areas.ariiGeamuri.reduce((sum, geam) => sum + geam.aria, 0) / areas.ariaProfil) * 100).toFixed(1)}%
+                </Text>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
     </Layout>
   );
